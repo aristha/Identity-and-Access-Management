@@ -1,11 +1,11 @@
-import os
+# import os
 from flask import Flask, request, jsonify, abort
-from sqlalchemy import exc
-import json
+# from sqlalchemy import exc
+# import json
 from flask_cors import CORS
 
 from .database.models import db_drop_and_create_all, setup_db, Drink
-from .auth.auth import AuthError, requires_auth
+# from .auth.auth import AuthError, requires_auth
 
 app = Flask(__name__)
 setup_db(app)
@@ -17,7 +17,8 @@ CORS(app)
 !! NOTE THIS MUST BE UNCOMMENTED ON FIRST RUN
 !! Running this funciton will add one
 '''
-# db_drop_and_create_all()
+with app.app_context():
+    db_drop_and_create_all()
 
 # ROUTES
 '''
@@ -28,7 +29,18 @@ CORS(app)
     returns status code 200 and json {"success": True, "drinks": drinks} where drinks is the list of drinks
         or appropriate status code indicating reason for failure
 '''
+# Get All drinks
+@app.route("/drinks", methods=["GET"])
+def get_drinks():
 
+    drinks = Drink.query.all()
+    formatted_categories = [drink.short() for drink in drinks]
+    return jsonify(
+        {
+            "success": True,
+            "drinks": formatted_categories
+        }
+    )
 
 '''
 @TODO implement endpoint
@@ -38,7 +50,18 @@ CORS(app)
     returns status code 200 and json {"success": True, "drinks": drinks} where drinks is the list of drinks
         or appropriate status code indicating reason for failure
 '''
+# Get All drinks
+@app.route("/drinks-detail", methods=["GET"])
+def get_drinks():
 
+    drinks = Drink.query.all()
+    formatted_drinks = [drink.long() for drink in drinks]
+    return jsonify(
+        {
+            "success": True,
+            "drinks": formatted_drinks
+        }
+    )
 
 '''
 @TODO implement endpoint
@@ -49,7 +72,44 @@ CORS(app)
     returns status code 200 and json {"success": True, "drinks": drink} where drink an array containing only the newly created drink
         or appropriate status code indicating reason for failure
 '''
-
+   # Create new question or Search question
+@app.route("/drinks", methods=["POST"])
+def create_drink():
+    
+    body = request.get_json()
+    try:
+        title = body.get("title", None)
+        recipe = body.get("recipe", None)
+        searchTerm = body.get("searchTerm", None)
+        if searchTerm: 
+            selection = Drink.query.order_by(Drink.id).filter(
+                Drink.question.ilike("%{}%".format(searchTerm))
+            )
+            current_questions = selection
+            if len(current_questions) == 0:
+                abort(404)
+            return jsonify(
+                {
+                    "success": True,
+                    "questions": current_questions,
+                    "total_questions": len(Drink.query.all()),
+                    "current_category":None
+                }
+            )
+        else:
+            drink_new = Drink(title=title,recipe=recipe)
+            drink_new.insert()
+            drinks = Drink.query.all()
+            formatted_drinks = [drink.long() for drink in drinks]
+            return jsonify(
+                {
+                    "success": True,
+                    "drinks": formatted_drinks
+                }
+            )
+        
+    except:
+        abort(422)
 
 '''
 @TODO implement endpoint
@@ -62,7 +122,30 @@ CORS(app)
     returns status code 200 and json {"success": True, "drinks": drink} where drink an array containing only the updated drink
         or appropriate status code indicating reason for failure
 '''
-
+# Get questions based on category
+@app.route("/drinks/<int:drinks_id>", methods=["PATCH"])
+# @cross_origin
+def update_drinks(drink_id):
+    try:
+        drink = Drink.query.get(Drink.id == drink_id)
+        if drink is None:
+            abort(404)
+        
+        body = request.get_json()
+        title = body.get("title", None)
+        recipe = body.get("recipe", None)
+        drink.title = title
+        drink.recipe = recipe
+        drinks = Drink.query.all()
+        formatted_drinks = [drink.long() for drink in drinks]
+        return jsonify(
+            {
+                "success": True,
+                "drinks": formatted_drinks
+            }
+        )
+    except:
+        abort(422)
 
 '''
 @TODO implement endpoint
@@ -74,7 +157,24 @@ CORS(app)
     returns status code 200 and json {"success": True, "delete": id} where id is the id of the deleted record
         or appropriate status code indicating reason for failure
 '''
-
+# Delete drinks
+@app.route("/drinks/<int:drink_id>", methods=["DELETE"])
+# @cross_origin
+def delete_drinks(drink_id):
+    try:
+        drink = Drink.query.get(drink_id)
+        if drink is None:
+            abort(404)
+            
+        drink.delete()
+        return jsonify(
+            {
+                "success": True,
+                "drink":drink.id
+            }
+        )
+    except:
+        abort(422)
 
 # Error Handling
 '''
@@ -101,7 +201,13 @@ def unprocessable(error):
                     }), 404
 
 '''
-
+@app.errorhandler(404)
+def unprocessable(error):
+    return jsonify({
+        "success": False,
+        "error": 404,
+        "message": "resource not found"
+    }), 404
 '''
 @TODO implement error handler for 404
     error handler should conform to general task above
