@@ -3,11 +3,12 @@ from flask import request, _request_ctx_stack, abort
 from functools import wraps
 from jose import jwt
 from urllib.request import urlopen
-
+import ssl
+ssl._create_default_https_context = ssl._create_unverified_context
 
 AUTH0_DOMAIN = 'dev-dh8lpj82.us.auth0.com'
 ALGORITHMS = ['RS256']
-API_AUDIENCE = 'dev'
+API_AUDIENCE = 'http://localhost:5000/'
 
 ## AuthError Exception
 '''
@@ -98,16 +99,19 @@ def check_permissions(permission, payload):
     !!NOTE urlopen has a common certificate error described here: https://stackoverflow.com/questions/50236117/scraping-ssl-certificate-verify-failed-error-for-http-en-wikipedia-org
 '''
 def verify_decode_jwt(token):
+    
     jsonurl = urlopen(f'https://{AUTH0_DOMAIN}/.well-known/jwks.json')
+    
     jwks = json.loads(jsonurl.read())
     unverified_header = jwt.get_unverified_header(token)
     rsa_key = {}
     if 'kid' not in unverified_header:
+        print(unverified_header)
         raise AuthError({
             'code': 'invalid_header',
             'description': 'Authorization malformed.'
         }, 401)
-
+    
     for key in jwks['keys']:
         if key['kid'] == unverified_header['kid']:
             rsa_key = {
@@ -118,6 +122,7 @@ def verify_decode_jwt(token):
                 'e': key['e']
             }
     if rsa_key:
+        
         try:
             payload = jwt.decode(
                 token,

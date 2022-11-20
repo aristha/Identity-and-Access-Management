@@ -1,12 +1,12 @@
 # import os
 from flask import Flask, request, jsonify, abort
 # from sqlalchemy import exc
-# import json
+import json
 from flask_cors import CORS
 
 from .database.models import db_drop_and_create_all, setup_db, Drink
-# from .auth.auth import AuthError, requires_auth
-
+from .auth.auth import AuthError, requires_auth
+import sys
 app = Flask(__name__)
 setup_db(app)
 CORS(app)
@@ -52,16 +52,20 @@ def get_drinks():
 '''
 # Get All drinks
 @app.route("/drinks-detail", methods=["GET"])
-def get_drinks():
+@requires_auth("get:drinks-detail")
+def get_drinks_detail(payload):
 
     drinks = Drink.query.all()
-    formatted_drinks = [drink.long() for drink in drinks]
-    return jsonify(
-        {
-            "success": True,
-            "drinks": formatted_drinks
-        }
-    )
+    try:
+        formatted_drinks = [drink.long() for drink in drinks]
+        return jsonify(
+            {
+                "success": True,
+                "drinks": formatted_drinks
+            }
+        )
+    except:
+        print(sys.exc_info())
 
 '''
 @TODO implement endpoint
@@ -74,7 +78,8 @@ def get_drinks():
 '''
    # Create new question or Search question
 @app.route("/drinks", methods=["POST"])
-def create_drink():
+@requires_auth("post:drinks")
+def create_drink(payload):
     
     body = request.get_json()
     try:
@@ -97,8 +102,9 @@ def create_drink():
                 }
             )
         else:
-            drink_new = Drink(title=title,recipe=recipe)
+            drink_new = Drink(title=title,recipe=json.dumps(recipe))
             drink_new.insert()
+           
             drinks = Drink.query.all()
             formatted_drinks = [drink.long() for drink in drinks]
             return jsonify(
@@ -109,6 +115,7 @@ def create_drink():
             )
         
     except:
+        print(sys.exc_info())
         abort(422)
 
 '''
@@ -123,11 +130,12 @@ def create_drink():
         or appropriate status code indicating reason for failure
 '''
 # Get questions based on category
-@app.route("/drinks/<int:drinks_id>", methods=["PATCH"])
+@app.route("/drinks/<int:drink_id>", methods=["PATCH"])
+@requires_auth("patch:drinks")
 # @cross_origin
-def update_drinks(drink_id):
+def update_drinks(payload, drink_id):
     try:
-        drink = Drink.query.get(Drink.id == drink_id)
+        drink = Drink.query.get(drink_id)
         if drink is None:
             abort(404)
         
@@ -135,7 +143,8 @@ def update_drinks(drink_id):
         title = body.get("title", None)
         recipe = body.get("recipe", None)
         drink.title = title
-        drink.recipe = recipe
+        drink.recipe = json.dumps(recipe)
+        drink.update()
         drinks = Drink.query.all()
         formatted_drinks = [drink.long() for drink in drinks]
         return jsonify(
@@ -145,6 +154,7 @@ def update_drinks(drink_id):
             }
         )
     except:
+        print(sys.exc_info())
         abort(422)
 
 '''
@@ -159,21 +169,26 @@ def update_drinks(drink_id):
 '''
 # Delete drinks
 @app.route("/drinks/<int:drink_id>", methods=["DELETE"])
+@requires_auth("delete:drinks")
 # @cross_origin
-def delete_drinks(drink_id):
+def delete_drinks(payload,drink_id):
     try:
         drink = Drink.query.get(drink_id)
         if drink is None:
+            print("ok")
             abort(404)
-            
+        print("ok2")
         drink.delete()
+        print("ok3")
         return jsonify(
             {
                 "success": True,
-                "drink":drink.id
+                "drink":drink_id
             }
         )
     except:
+        
+        print(sys.exc_info())
         abort(422)
 
 # Error Handling
@@ -202,7 +217,7 @@ def unprocessable(error):
 
 '''
 @app.errorhandler(404)
-def unprocessable(error):
+def not_found(error):
     return jsonify({
         "success": False,
         "error": 404,
@@ -218,3 +233,12 @@ def unprocessable(error):
 @TODO implement error handler for AuthError
     error handler should conform to general task above
 '''
+@app.errorhandler(AuthError)
+def invalid_claims(ex):
+    return jsonify({
+                    "success": False,
+                    "error": ex.status_code,
+                    "message": ex.error
+                    })
+if __name__ == "__main__":
+    app.run(ssl_context='adhoc')

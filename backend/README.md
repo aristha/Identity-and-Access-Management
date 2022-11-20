@@ -37,13 +37,16 @@ From within the `./src` directory first ensure you are working using your create
 Each time you open a new terminal session, run:
 
 ```bash
-export FLASK_APP=api.py;
+python -m virtualenv env
+source env/Scripts/activate
+pip3 install -r requirements.txt
+export FLASK_APP=src/api.py
 ```
 
 To run the server, execute:
 
 ```bash
-flask run --reload
+flask run --cert=adhoc --reload
 ```
 
 The `--reload` flag will detect file changes and restart the server automatically.
